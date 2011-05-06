@@ -83,13 +83,13 @@
 (defn expand [history-node]
     "Produces a set of moves from a given node"
     (let [board (:board history-node)]
-        (sort-by :heuristic (remove nil? (map 
+        (remove nil? (map 
             (fn [op]
                 (if (and (validate-op op board) (not-backwards? op (:oplist history-node)))
                     {:board (apply-op op board) 
                      :oplist (cons op (:oplist history-node)) 
                      :heuristic (composite-heuristic board)})) 
-            *operations*)))))
+            *operations*))))
 
 (defn a-star
     ([init] 
