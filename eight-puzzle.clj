@@ -1,14 +1,19 @@
 (ns org.dcousineau.clojure.eight-puzzle
     (:use [clojure.contrib.def :only (defvar)])
     (:use [clojure.contrib.seq :only (positions)])
-    (:use [clojure.contrib.math :only (abs floor)])
-    (:require clojure.contrib.except))
+    (:use [clojure.contrib.math :only (abs floor)]))
 
 (defvar *operations* '(:up :down :left :right)
     "List of available operations")
 
 (defvar *goal-state* '(1 2 3 8 0 4 7 6 5)
     "The desired goal state of any given board")
+
+; Goal-state board translates to the following physical layout:
+;
+; 1 2 3
+; 8 0 4
+; 7 6 5
 
 (defn locate [piece board]
     "Locate a piece on the board"
