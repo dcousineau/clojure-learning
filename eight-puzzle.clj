@@ -1,7 +1,8 @@
 (ns org.dcousineau.clojure.eight-puzzle
     (:use [clojure.contrib.def :only (defvar)])
     (:use [clojure.contrib.seq :only (positions)])
-    (:use [clojure.contrib.math :only (abs floor)]))
+    (:use [clojure.contrib.math :only (abs floor)])
+    (:require clojure.contrib.except))
 
 (defvar *operations* '(:up :down :left :right)
     "List of available operations")
@@ -15,9 +16,12 @@
 
 (defn swap-pieces [loc1 loc2 board]
     "Swap 2 pieces on the board by their index"
-    (let [minloc (min loc1 loc2) maxloc (max loc1 loc2)]
-    (let [[pre-min post-min] (split-at minloc board)]
-    (let [[post-min-pre-max post-min-post-max] (split-at (- maxloc (count pre-min) 1) (rest post-min))]
+    (let [minloc (min loc1 loc2)
+          maxloc (max loc1 loc2)]
+    (let [[pre-min 
+           post-min] (split-at minloc board)]
+    (let [[post-min-pre-max
+           post-min-post-max] (split-at (- maxloc (count pre-min) 1) (rest post-min))]
         (concat 
             pre-min
             (list (nth board maxloc))
@@ -44,49 +48,58 @@
             (= op :left) (swap-pieces pos (- pos 1) board)
             (= op :right) (swap-pieces pos (+ pos 1) board))))
 
-(defn manhattan-distance-sum [board]
-    "Find the sum of the manhattan distances for each piece on a board between their respective goal states"
-    (reduce + (map #(manhattan-distance % board) board)))
-
 (defn manhattan-distance [piece board]
     "Find the mahattan distance between a piece and its goal state"
-    (let [pos (locate piece board) goal-pos (locate piece *goal-state*)]
+    (let [pos (locate piece board) 
+          goal-pos (locate piece *goal-state*)]
         (abs (+ 
             (- (floor (/ pos 3)) (floor (/ goal-pos 3))) 
             (- (mod pos 3) (mod goal-pos 3))))))
+
+(defn manhattan-distance-sum [board]
+    "Find the sum of the manhattan distances for each piece on a board between their respective goal states"
+    (reduce + (map #(manhattan-distance % board) board)))
 
 (defn out-of-place [board]
     "Find the number of pieces out of place on a board compared to its goal state"
     (reduce + (map #(if (not= (locate % board) (locate % *goal-state*)) 1 0) board)))
 
-(comment ------------------------- )
+(defn composite-heuristic [board]
+    (+ (manhattan-distance-sum board) (out-of-place board)))
+
+; --- A* ---
 
 (defn not-backwards? [op history]
     "Is a given operation the reverse of the previous operation"
     (if (> 0 (count history))
-        ((let [last-history-node (last history)]
-        (let [last-op (:op last-history-node)]
+        (let [last-op (first history)]
             (cond 
                 (= last-op :up) (not= op :down)
                 (= last-op :down) (not= op :up)
                 (= last-op :right) (not= op :left)
-                (= last-op :left) (not= op :right)))))
+                (= last-op :left) (not= op :right)))
         true))
 
 (defn expand [history-node]
     "Produces a set of moves from a given node"
-    (let [successors '() board (:board history-node)]
-        (remove nil? (map 
+    (let [board (:board history-node)]
+        (sort-by :heuristic (remove nil? (map 
             (fn [op]
-                (if (and (validate-op op board) (not-backwards? op history))
-                    {:board (apply-op op board) :op op})) 
-            *operations*))))
+                (if (and (validate-op op board) (not-backwards? op (:oplist history-node)))
+                    {:board (apply-op op board) 
+                     :oplist (cons op (:oplist history-node)) 
+                     :heuristic (composite-heuristic board)})) 
+            *operations*)))))
+
+(defn a-star
+    ([init] 
+        (a-star (list {:board init :oplist '() :heuristic (composite-heuristic board)}) 1))
+    ([queue iter]
+        (if (= (:board (first queue)) *goal-state*)
+            (reverse (:oplist (first queue)))
+            (recur (sort-by :heuristic (concat (expand (first queue)) (rest queue))) (inc iter)))))
 
 (defvar board '(0 2 3 1 8 4 7 6 5)
     "Starting board (solution :down :right)")
 
-
-(defn a-star [init]
-    "Solve eight puzzle using the A* algorithm"
-    (let [queue (list {:board init :op nil})]
-        ))
+(a-star board)
