@@ -29,7 +29,7 @@
             (list (nth board minloc))
             (rest post-min-post-max))))))
 
-(defn validate-op [op board]
+(defn op-valid? [op board]
     "Validate an operation on the empty piece"
     (let [pos (locate 0 board)]
         (cond 
@@ -39,7 +39,7 @@
             (= op :right) (not= 2 (mod pos 3)))))
 
 (defn apply-op [op board]
-    {:pre [(validate-op op board)]
+    {:pre [(op-valid? op board)]
      :doc "Move the empty piece in a given direction"}
     (let [pos (locate 0 board)]
         (cond 
@@ -47,6 +47,30 @@
             (= op :down) (swap-pieces pos (+ pos 3) board)
             (= op :left) (swap-pieces pos (- pos 1) board)
             (= op :right) (swap-pieces pos (+ pos 1) board))))
+
+(defn not-backwards? [op history]
+    "Is a given operation the reverse of the previous operation"
+    (if (> 0 (count history))
+        (let [last-op (first history)]
+            (cond 
+                (= last-op :up) (not= op :down)
+                (= last-op :down) (not= op :up)
+                (= last-op :right) (not= op :left)
+                (= last-op :left) (not= op :right)))
+        true))
+
+(defn expand [history-node]
+    "Produces a set of moves from a given node"
+    (let [board (:board history-node)]
+        (remove nil? (map 
+            (fn [op]
+                (if (and (op-valid? op board) (not-backwards? op (:oplist history-node)))
+                    {:board (apply-op op board) 
+                     :oplist (cons op (:oplist history-node)) 
+                     :heuristic (composite-heuristic board)})) 
+            *operations*))))
+
+; --- A* ---
 
 (defn manhattan-distance [piece board]
     "Find the mahattan distance between a piece and its goal state"
@@ -67,31 +91,8 @@
 (defn composite-heuristic [board]
     (+ (manhattan-distance-sum board) (out-of-place board)))
 
-; --- A* ---
-
-(defn not-backwards? [op history]
-    "Is a given operation the reverse of the previous operation"
-    (if (> 0 (count history))
-        (let [last-op (first history)]
-            (cond 
-                (= last-op :up) (not= op :down)
-                (= last-op :down) (not= op :up)
-                (= last-op :right) (not= op :left)
-                (= last-op :left) (not= op :right)))
-        true))
-
-(defn expand [history-node]
-    "Produces a set of moves from a given node"
-    (let [board (:board history-node)]
-        (remove nil? (map 
-            (fn [op]
-                (if (and (validate-op op board) (not-backwards? op (:oplist history-node)))
-                    {:board (apply-op op board) 
-                     :oplist (cons op (:oplist history-node)) 
-                     :heuristic (composite-heuristic board)})) 
-            *operations*))))
-
 (defn a-star
+    "Execute an A* algorithm and return an ordered list of operations to solve the board"
     ([init] 
         (a-star (list {:board init :oplist '() :heuristic (composite-heuristic board)}) 1))
     ([queue iter]
